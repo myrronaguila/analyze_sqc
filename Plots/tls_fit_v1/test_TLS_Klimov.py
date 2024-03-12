@@ -46,31 +46,36 @@ merge_f1d1 = [[5.46,5.49], [5.57,5.59], [5.592, 5.605], [5.607, 5.63],
 res_f1d1_med, dict_guess_f1d1 = median_threshold_algo(x_f1d1_GHz, y_f1d1_MHz, xlag=lag_f1d1, 
                                                       xmerge = merge_f1d1, threshold=1, 
                                                       num_pts=11, show='Y') #Klimov
+# 
 
 # non-bundled data of lmfit
 res_f1d1_best_fit, res_f1d1_params = lm_nlz_const_fit(x_f1d1_GHz, y_f1d1_MHz, dict_guess_f1d1, 
                                                       [False, True, True, True], show=['Y','Y'],
-                                                      bundle = 'N', save=['Y','Klimov_best_fit'], 
+                                                      bundle = 'N', save=['Y',dir1 + 'Klimov_best_fit'], 
                                                       time='Y', input_info=['time_min', 0.5, 'pow_W', 1.35E-9])
+# Elapsed time = 2.09 seconds
 
 # save bundled data of lmfit
 res_f1d1b_best_fit, res_f1d1b_params = lm_nlz_const_fit(x_f1d1_GHz, y_f1d1_MHz, dict_guess_f1d1, 
                                                         [False, True, True, True], show=['Y','Y'],
-                                                        bundle = 'Y', save=['Y','Klimov_best_fit_B'], 
+                                                        bundle = 'Y', save=['Y',dir1 + 'Klimov_best_fit_B'], 
                                                         time='Y', input_info=['time_min', 0, ['pow_W',1.35]])
+# Elapsed time = 1.67 seconds
 
 # check lm_tls_function
 # save non-bundled data with tls model
 res_f1d1_best_fit_2, res_f1d1_tls = lm_nlz_tls_fit(x_f1d1_GHz, y_f1d1_MHz, dict_guess_f1d1, 
                                                     [False, True, True, True], show=['Y','Y'],
-                                                    bundle='N', save=['Y','Klimov_best_fit_2'], 
+                                                    bundle='N', save=['Y',dir1 + 'Klimov_best_fit_2'], 
                                                     time='Y', input_info=['time_min', 0.5, 'pow_W', 1.35E-9])
+# Elapsed time = 2.7 seconds
 
 # save bundled data with tls model
 res_f1d1b_best_fit_2, res_f1d1b_tls = lm_nlz_tls_fit(x_f1d1_GHz, y_f1d1_MHz, dict_guess_f1d1, 
                                                     [False, True, True, True], show=['Y','Y'],
-                                                    bundle='Y', save=['Y','Klimov_best_fit_2B'], 
+                                                    bundle='Y', save=['Y',dir1 + 'Klimov_best_fit_2B'], 
                                                     time='Y', input_info=['time_min', 0.5, 'pow_W', 1.35E-9])
+# Elapsed time = 2.79 seconds
 
 """---Load data from saved dictionary from .mat file for further processing---"""
 d_kli_nlz_best_fit = loadmat_to_dict_1d(dir1 + 'Klimov_best_fit')
