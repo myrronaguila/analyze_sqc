@@ -284,7 +284,7 @@ def lm_dB_errors(xdata, ydata, show=['Y','Y'], **kwargs):
     if 'weights' in kwargs:
         weights = kwargs['weights'] #weights, 1D numpy array
     else:
-        weights = np.ones(len(ydata))
+        weights = None
     
     if 'method' in kwargs:
         method = kwargs['method']
@@ -518,19 +518,28 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
     """step 1 => determine T1 via Free; |0>. In PPT, Apply RY(pi)
     guess[0]=0, guess[1] is dummy variable, guess[2]=1
     """
-    step1_fit, dict_step1 = lm_dB_errors(xdata=step1_x, ydata=step1_y, show=['Y','Y'],
-                                          bool_params=[False, True, False],
-                                          guess = [0, 1E-5, -1])
+    step1_fit, dict_step1 = lm_dB_errors(xdata=step1_x, 
+                                         ydata=step1_y, 
+                                         show=["N","N"],
+                                        #  bool_params=[False, True, False],
+                                        #  guess = [0, 1E-5, -1]
+                                         )
     
     """step 2 => determine T2* (Ramsey T2) via XX;|+>. In PPT, Apply RY(pi/2), P1=P2=RX(pi)
     guess[0]=0, guess[1] is dummy variable, guess[2]=0"""
-    step2_fit, dict_step2 = lm_dB_errors(xdata=step2_x, ydata=step2_y, show=['Y','Y'],
-                                          bool_params=[False, True, False],
-                                          guess = [0, 1E-5, 0])
+    step2_fit, dict_step2 = lm_dB_errors(xdata=step2_x, 
+                                         ydata=step2_y, 
+                                         show=["N","N"],
+                                        #  bool_params=[False, True, True],
+                                        #  guess = [0, 1E-5, 0]
+                                         )
     
     """step 3 => determine rotation errors via YY;|+>. In PPT, Apply RY(pi/2) to |0>, P1=P2=RY(pi)
     """
-    step3_fit, dict_step3 = lm_dB_errors(xdata=step3_x, ydata=step3_y, show=['Y','Y'])
+    step3_fit, dict_step3 = lm_dB_errors(xdata=step3_x, 
+                                         ydata=step3_y, 
+                                         show=["N","N"]
+                                         )
     # convert frequency to rotational errors
     sig_theta = get_db_errors(f=ufloat(nominal_value=dict_step3['f_e'][0], std_dev=dict_step3['f_e'][1]),
                               tg=tg, err_type='rot')
@@ -538,7 +547,10 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
     """
     step 4 => determine rotation errors via YY;|+>. In PPT, Apply RY(pi/2) to |0>, P1=RX(pi), P2=RX(-pi)
     """
-    step4_fit, dict_step4 = lm_dB_errors(xdata=step4_x, ydata=step4_y, show=['Y','Y'])
+    step4_fit, dict_step4 = lm_dB_errors(xdata=step4_x, 
+                                         ydata=step4_y, 
+                                         show=["N","N"]
+                                         )
     # convert frequency to phase errors
     sig_phi = get_db_errors(f=ufloat(nominal_value=dict_step4['f_e'][0], std_dev=dict_step4['f_e'][1]),
                             tg=tg, err_type='phase')
@@ -552,7 +564,7 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
     dict_DB = {'T1_ns': [dict_step1['T_d'][0], dict_step1['T_d'][1]],
                'T2r_ns': [dict_step2['T_d'][0], dict_step2['T_d'][1]],
                'sig_theta_deg': [sig_theta.n, sig_theta.std_dev],
-               'sig_theta_phi': [sig_phi.n, sig_phi.std_dev]}
+               'sig_phi_deg': [sig_phi.n, sig_phi.std_dev]}
     
     if show[0] == 'Y':
         print('\n')
