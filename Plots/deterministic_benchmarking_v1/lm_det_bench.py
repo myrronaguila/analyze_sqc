@@ -529,7 +529,7 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
     guess[0]=0, guess[1] is dummy variable, guess[2]=0"""
     step2_fit, dict_step2 = lm_dB_errors(xdata=step2_x, 
                                          ydata=step2_y, 
-                                         show=["N","N"],
+                                         show=["N","Y"],
                                         #  bool_params=[False, True, True],
                                         #  guess = [0, 1E-5, 0]
                                          )

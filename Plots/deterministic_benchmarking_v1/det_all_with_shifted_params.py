@@ -1,7 +1,7 @@
 from lm_det_bench import steps_db_errors
 
 from xarray import open_dataset
-dataset = open_dataset(r"D:\HW\Quela\QM\QM_data\5Q4C_20241016_2_AS1608\5Q4C_20241016_2_AS1608\Using_result_20241206\q4\20241220_182313_SQDB_shift_one_param\SQDB_shift_one_param.nc")
+dataset = open_dataset(r"D:\HW\Quela\QM\QM_data\5Q4C_20241016_2_AS1608\5Q4C_20241016_2_AS1608\Using_result_20241206\q4\20241219_171357_SQDB_shift_one_param\SQDB_shift_one_param.nc")
 tg = 40 #ns 
 param_name = 'amp'
 
@@ -60,15 +60,15 @@ fig = plt.figure(constrained_layout=True, figsize=(2*cm_to_inch(wfig),
                                                     2*cm_to_inch(wfig)))
 spec = gridspec.GridSpec(ncols=1, nrows=1, figure=fig, hspace =0.1, wspace=0.1)
 ax0 = fig.add_subplot(spec[0, 0]) # line-plot from literature and compare with model
-ax0.plot(datas.coords[param_name], T1s, 'k-')
-ax0.errorbar(datas.coords[param_name], T1s, yerr=T1s_std, color='k', fmt="s", label=r'T1(ns)')
+# ax0.plot(datas.coords[param_name], T1s, 'k-')
+# ax0.errorbar(datas.coords[param_name], T1s, yerr=T1s_std, color='k', fmt="s", label=r'T1(ns)')
 ax0.plot(datas.coords[param_name], T2s, 'b-')
 ax0.errorbar(datas.coords[param_name], T2s, yerr=T2s_std, color='b', fmt="s", label=r'T2(ns)')
 ax1 = ax0.twinx()
-ax1.plot(datas.coords[param_name], sig_thetas, 'g-')
-ax1.errorbar(datas.coords[param_name], sig_thetas, yerr=sig_thetas_std, color='g', fmt="o", label=r'sig_theta(deg)')
-ax1.plot(datas.coords[param_name], sig_phis, 'm-')
-ax1.errorbar(datas.coords[param_name], sig_phis, yerr=sig_phis_std, color='m', fmt="o", label=r'sig_phi(deg)')
+# ax1.plot(datas.coords[param_name], sig_thetas, 'g-')
+# ax1.errorbar(datas.coords[param_name], sig_thetas, color='g', fmt="o", label=r'sig_theta(deg)')
+# ax1.plot(datas.coords[param_name], sig_phis, 'm-')
+# ax1.errorbar(datas.coords[param_name], sig_phis, yerr=sig_phis_std, color='m', fmt="o", label=r'sig_phi(deg)')
 
 ax0.set_xlabel(f'{param_name}')
 ax0.set_ylabel('T1, T2 evolution time(ns)')
