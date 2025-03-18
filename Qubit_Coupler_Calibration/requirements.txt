@@ -1,0 +1,7 @@
+lmfit==1.2.2
+matplotlib==3.7.2
+numpy==1.25.1
+pandas==2.0.3
+pipreqs==0.4.13
+scipy==1.11.1
+uncertainties==3.1.7
