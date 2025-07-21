@@ -1,11 +1,15 @@
+import time
 from lm_det_bench import steps_db_errors
 
 from xarray import open_dataset
-dataset = open_dataset(r"D:\HW\Quela\QM\QM_data\5Q4C_20241016_2_AS1608\5Q4C_20241016_2_AS1608\Using_result_20241206\q4\20241219_171357_SQDB_shift_one_param\SQDB_shift_one_param.nc")
+#dataset = open_dataset(r"D:\HW\Quela\QM\QM_data\5Q4C_20241016_2_AS1608\5Q4C_20241016_2_AS1608\Using_result_20241206\q4\20241219_171357_SQDB_shift_one_param\SQDB_shift_one_param.nc")
+dataset = open_dataset(r"C:\Users\Mai\Documents\GitHub\analyze_sqc\20241219_171357_SQDB_shift_one_param\SQDB_shift_one_param.nc")
 tg = 40 #ns 
 param_name = 'amp'
 
 # print(dataset)
+
+start = time.time()
 for ro_name, datas in dataset.data_vars.items():
     xdata = datas.coords["repeat_time"].values
     ydata = []
@@ -52,6 +56,15 @@ for ro_name, datas in dataset.data_vars.items():
         sig_phis.append(dict_dB['sig_phi_deg'][0])
         sig_phis_std.append(dict_dB['sig_phi_deg'][1])
         
+end = time.time()
+elapsed = end - start
+print(f'Time taken: {elapsed:.3e} seconds')
+"""
+Current code: Time taken: 1.070e+01 seconds
+Goal: Lower benchmark time without compromising accuracy
+"""
+
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec 
 from data_plots_qm import cm_to_inch       
@@ -60,8 +73,8 @@ fig = plt.figure(constrained_layout=True, figsize=(2*cm_to_inch(wfig),
                                                     2*cm_to_inch(wfig)))
 spec = gridspec.GridSpec(ncols=1, nrows=1, figure=fig, hspace =0.1, wspace=0.1)
 ax0 = fig.add_subplot(spec[0, 0]) # line-plot from literature and compare with model
-# ax0.plot(datas.coords[param_name], T1s, 'k-')
-# ax0.errorbar(datas.coords[param_name], T1s, yerr=T1s_std, color='k', fmt="s", label=r'T1(ns)')
+ax0.plot(datas.coords[param_name], T1s, 'k-')
+ax0.errorbar(datas.coords[param_name], T1s, yerr=T1s_std, color='k', fmt="s", label=r'T1(ns)')
 ax0.plot(datas.coords[param_name], T2s, 'b-')
 ax0.errorbar(datas.coords[param_name], T2s, yerr=T2s_std, color='b', fmt="s", label=r'T2(ns)')
 ax1 = ax0.twinx()

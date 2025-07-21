@@ -20,6 +20,7 @@ from uncertainties import ufloat
 from lineshapes_det_bench import dB_errors, dB_fidelity
 from lineshapes_det_bench import get_db_errors
 
+
 """fundamental constants"""
 kb = 1.380649E-23 #J K^-1
 hbar = 1.054571817E-34 #J s
@@ -235,7 +236,7 @@ def lm_dB_errors(xdata, ydata, show=['Y','Y'], **kwargs):
     if 'bool_params' in kwargs:
         par_var = kwargs['bool_params']
     else:
-        par_var = [True, True, True]
+        par_var = [True, True, True] # by default, all params are true, but it looses accuracy
     
     dict_g = {}
     # first version for guess; only f_e and a are modifiable by input
@@ -409,7 +410,7 @@ def lm_dB_infid(xdata, ydata, show=['Y','Y'], **kwargs):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)    
     
     params.add_many((par[0], p[0], par_var[0], 0.0, 1.0),
-                    (par[1], p[1], par_var[1], 0.0, 1.0), 
+                    (par[1], p[1], par_var[1], 1.0, 1E6), 
                     (par[2], p[2], par_var[2], 1E-8, 1.0),
                     (par[3], p[3], False))
     params.add('spam_F', expr='A+B')
@@ -474,6 +475,151 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
         2. XX |+> => T2*
         3. YY |+> => Rot Error in degrees
         4. XXbar |+> => Phase Error in degrees
+        
+    First pull => Jieun Yi Lee
+        1. Autofit a for better approximation of values
+    
+    Parameters
+    ----------
+    xdata_lst : list of 1D numpy arrays
+        list of evolution times (in ns).
+    ydata_lst : list of 1D numpy arrays
+        Fidelity.
+    tg : float
+        gate time in ns.
+    show : show report, optional
+        DESCRIPTION. The default is ['Y','Y'].
+    **kwargs : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    **kwargs : dictionary
+        List of optional modes.
+        bool_params : list of booleans
+            bool_params[0] = True or False (for A)
+            bool_params[1] = True or False (for B)
+            bool_params[2] = True or False (for r_clif => clifford error)
+            bool_params[3] = True or False
+        guess : list of float
+            guess[0] => A (Initial State Probability)
+            guess[1] => B (Final state probability)
+            guess[2] => r_clif (clifford error)
+            guess[3] => number of qubits (constant)
+        weights : 1D numpy array
+            examples: np.power(ydata,-1) #bias
+            np.power(ydata, -0.5) # bias
+            np.ones(len(ydata)) => default
+        method : string
+            Fitting algorithm (i.e. 'least-square', 'nelder-mead', 'differential-evolution')
+        fit_res_pts : float
+            Number of fitting points different from xdata
+    """
+    # prepare data for experiment
+    step1_x, step2_x, step3_x, step4_x = xdata_lst[0], xdata_lst[1], xdata_lst[2], xdata_lst[3]
+    step1_y, step2_y, step3_y, step4_y = ydata_lst[0], ydata_lst[1], ydata_lst[2], ydata_lst[3]
+    
+    """step 1 => determine T1 via Free; |0>. In PPT, Apply RY(pi)
+    guess[0]=0, guess[1] is dummy variable, guess[2]=1
+    """
+    step1_fit, dict_step1 = lm_dB_errors(xdata=step1_x, 
+                                         ydata=step1_y, 
+                                         show=["N","N"],
+                                        #  bool_params=[False, True, False],
+                                        #  guess = [0, 1E-5, -1]
+                                         )
+    
+    """step 2 => determine T2* (Ramsey T2) via XX;|+>. In PPT, Apply RY(pi/2), P1=P2=RX(pi)
+    guess[0]=0, guess[1] is dummy variable, guess[2]=0"""
+    step2_fit, dict_step2 = lm_dB_errors(xdata=step2_x, 
+                                         ydata=step2_y, 
+                                         show=["N","N"],
+                                        #  bool_params=[False, True, True],
+                                        #  guess = [0, 1E-5, 0]
+                                         )
+    
+    """step 3 => determine rotation errors via YY;|+>. In PPT, Apply RY(pi/2) to |0>, P1=P2=RY(pi)
+    """
+    step3_fit, dict_step3 = lm_dB_errors(xdata=step3_x, 
+                                         ydata=step3_y, 
+                                         show=["N", "N"]
+                                         )
+    # convert frequency to rotational errors
+    sig_theta = get_db_errors(f=ufloat(nominal_value=dict_step3['f_e'][0], std_dev=dict_step3['f_e'][1]),
+                              tg=tg, err_type='rot')
+        
+    """
+    step 4 => determine rotation errors via YY;|+>. In PPT, Apply RY(pi/2) to |0>, P1=RX(pi), P2=RX(-pi)
+    """
+    step4_fit, dict_step4 = lm_dB_errors(xdata=step4_x, 
+                                         ydata=step4_y, 
+                                         show=["N","N"]
+                                         )
+    # convert frequency to phase errors
+    sig_phi = get_db_errors(f=ufloat(nominal_value=dict_step4['f_e'][0], std_dev=dict_step4['f_e'][1]),
+                            tg=tg, err_type='phase')
+    # different result from 
+    
+    """
+    step 5 => prepare dictionary of T1, T2*, sig_theta, sig_phi as well as
+    best-fit models and then show report if necessary
+    """
+    fit_list = [step1_fit, step2_fit, step3_fit, step4_fit]
+    dict_DB = {'T1_ns': [dict_step1['T_d'][0], dict_step1['T_d'][1]],
+               'T2r_ns': [dict_step2['T_d'][0], dict_step2['T_d'][1]],
+               'sig_theta_deg': [sig_theta.n, sig_theta.std_dev],
+               'sig_phi_deg': [sig_phi.n, sig_phi.std_dev]}
+    
+    if show[0] == 'Y':
+        print('\n')
+        #this report is important as it gives measure on further analysis the option of bundling
+        print(dict_DB)
+        print('\n')
+    
+    if show[1] == 'Y':
+        # comment from steps after jieyun work. Fit too much covered
+        wfig=8.6
+        fig = plt.figure(constrained_layout=True, figsize=(1*cm_to_inch(wfig),
+                                                            1*cm_to_inch(wfig)))
+        spec = gridspec.GridSpec(ncols=1, nrows=1, figure=fig, hspace =0.1, wspace=0.1)
+        ax0 = fig.add_subplot(spec[0, 0]) # line-plot from literature and compare with model
+        
+        # Data
+        ax0.plot(step1_x, step1_y, 'k.', label=r'data, Free; $|0\rangle$')
+        ax0.plot(step2_x, step2_y, 'b.', label=r'data, $XX$; $|+\rangle$')
+        ax0.plot(step3_x, step3_y, 'g.', label=r'data, $YY$; $|+\rangle$')
+        ax0.plot(step4_x, step4_y, 'm.', label=r'data, $X\bar{X}$; $|+\rangle$')
+        
+        # Fit
+        ax0.plot(step1_fit[0], step1_fit[1], 'k-', label=r'fit, Free; $|0\rangle$')
+        ax0.plot(step2_fit[0], step2_fit[1], 'b-', label=r'fit, $XX$; $|+\rangle$')
+        ax0.plot(step3_fit[0], step3_fit[1], 'g-', label=r'fit, $YY$; $|+\rangle$')
+        ax0.plot(step4_fit[0], step4_fit[1], 'm-', label=r'fit, $X\bar{X}$; $|+\rangle$')
+        
+        ax0.set_xlabel('Evolution Time (ns)')
+        ax0.set_ylabel('')
+        ax0.set_ylabel(r'Fidelity')
+        ax0.set_ylim(-0.05, 1.05)
+        ax0.legend(loc='best', ncols=2, fontsize='x-small', frameon=False)
+
+        plt.show()
+    
+    return fit_list, dict_DB 
+
+def steps_dB_errors_v2(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
+    """
+    Ver2 of steps_dB_errors
+    
+    Systematic procedure to extract parameters required for deterministic 
+    benchmarking {T1, T2, sig_theta, sig_phi} from the following experiments:
+        1. Free |0> => T1
+        2. XX |+> => T2*
+        3. YY |+> => Rot Error in degrees
+        4. XXbar |+> => Phase Error in degrees
+
+    Note: version 2 of steps but considering fixes compared to previous:
+        1. Change color of fit function for easier distinguishibility
+        2. Vary values of a for better visualization
 
     Parameters
     ----------
@@ -529,7 +675,7 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
     guess[0]=0, guess[1] is dummy variable, guess[2]=0"""
     step2_fit, dict_step2 = lm_dB_errors(xdata=step2_x, 
                                          ydata=step2_y, 
-                                         show=["N","Y"],
+                                         show=["N","N"],
                                         #  bool_params=[False, True, True],
                                         #  guess = [0, 1E-5, 0]
                                          )
@@ -540,6 +686,8 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
                                          ydata=step3_y, 
                                          show=["N","N"]
                                          )
+    # underestimation lies with current varying parameters on readout. May need to further improve readout
+    
     # convert frequency to rotational errors
     sig_theta = get_db_errors(f=ufloat(nominal_value=dict_step3['f_e'][0], std_dev=dict_step3['f_e'][1]),
                               tg=tg, err_type='rot')
@@ -573,6 +721,7 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
         print('\n')
     
     if show[1] == 'Y':
+        # comment from steps after jieyun work. Fit too much covered
         wfig=8.6
         fig = plt.figure(constrained_layout=True, figsize=(1*cm_to_inch(wfig),
                                                             1*cm_to_inch(wfig)))
@@ -586,10 +735,10 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
         ax0.plot(step4_x, step4_y, 'm.', label=r'data, $X\bar{X}$; $|+\rangle$')
         
         # Fit
-        ax0.plot(step1_fit[0], step1_fit[1], 'k-', label=r'fit, Free; $|0\rangle$')
-        ax0.plot(step2_fit[0], step2_fit[1], 'b-', label=r'fit, $XX$; $|+\rangle$')
-        ax0.plot(step3_fit[0], step3_fit[1], 'g-', label=r'fit, $YY$; $|+\rangle$')
-        ax0.plot(step4_fit[0], step4_fit[1], 'm-', label=r'fit, $X\bar{X}$; $|+\rangle$')
+        ax0.plot(step1_fit[0], step1_fit[1], ls='solid', c='gainsboro', label=r'fit, Free; $|0\rangle$')
+        ax0.plot(step2_fit[0], step2_fit[1], ls='solid', c='tab:red', label=r'fit, $XX$; $|+\rangle$')
+        ax0.plot(step3_fit[0], step3_fit[1], ls='solid', c='aqua', label=r'fit, $YY$; $|+\rangle$')
+        ax0.plot(step4_fit[0], step4_fit[1], ls='solid', c='navy', label=r'fit, $X\bar{X}$; $|+\rangle$')
         
         ax0.set_xlabel('Evolution Time (ns)')
         ax0.set_ylabel('')
@@ -599,8 +748,161 @@ def steps_db_errors(xdata_lst, ydata_lst, tg=88, show=['Y','Y'], **kwargs):
 
         plt.show()
     
-    return fit_list, dict_DB 
+    return fit_list, dict_DB
 
+def autofit_steps_dB_errors(x2Ddata, y2Ddata, var_dict, inverse=True, xlim=[], 
+                            save=['N', 'res_test'], t=0.5, **kwargs):
+    # automated extraction of steps in an interleaved dB benchmarking protocol
+    """
+    Automatic of series of 1D data of x-inverse for further 
+    analysis (surface loss theory vs radiation) - raw data is Qi.
+    
+    - works for now but will be adjusted in the future for access with 
+    differential equation solvers
+    
+    # for more-compact analysis, search from minimum y value and maximum y-value 
+    of x2Ddata and y2Ddata and make the axes fixed
+    
+    Parameters
+    ----------
+    x2D_data : list of 1D array / 2D array
+        list of 1D array for data with variable length
+        2D array of data with uniform length
+        x-axis
+    y2D_data : list of 1D array 
+        2D array of data with uniform length
+        y-axis
+    xlim : list of list
+        variable range
+    axes_label : list
+        axes_label[0] = x
+        axes_label[1] = y
+    dict_var : dictionary
+        
+        var_param_m: ['param_label', 1D numpy array, 'unit']
+        var_param_1: ['param_label', 1D numpy array, 'unit']
+        other_param_0: ['param_label', float, 'unit']
+        other_param_1: ['param_label', float, 'unit']
+        
+        Var-params are dictionaries serving as basis for structured analysis
+        - var_param_m series are used for setting loops
+        - var_param_1 etc are used to insert value in each dataset for better
+            parameter accuracy
+        - other_param_0: are unit floats made constant for analysis
+    t : TYPE, optional
+        Extra Wait time needed in-between plot fits. 
+        Previously important in checking data fidelity. 
+        The default is 0.5.
+    **kwargs: 
+        plot_param_report
+        save_anim = ['Y',filename]
+        input_info = ['mount=ScalinQ', 'ir=0', 'resonator=C44128']
+        comments = list of strings
+        
+        **kwargs from lm_Qinv_TLS
+        **kwargs from show_fit_report
+    Returns
+    -------
+    yi_pars_val_stderr: list of dictionary.
+        Analyzed data
+    """
+    # initializedd data
+    
+    # get number of rows curves available from 2D data, or list of 1D data
+    n = len(x2Ddata)
+    
+    # retrieve iterable parameters from dictionary
+    lst_var_params_m0 = var_dict['var_param_m0'] 
+    var_desc_m0, var_arr_m0, var_unit_m0 = lst_var_params_m0[0], lst_var_params_m0[1], lst_var_params_m0[2]
+    
+    lst_var_params_m1 = var_dict['var_param_m1'] 
+    var_desc_m1, var_arr_m1, var_unit_m1 = lst_var_params_m1[0], lst_var_params_m1[1], lst_var_params_m1[2]
+    
+    # get frequency and temperature from var_dict [non-tuneable variables]
+    lst_const_params = var_dict['var_param_0']
+    var_desc1, var_arr1, var_unit1 = lst_const_params[0], lst_const_params[1], lst_const_params[2]
+    
+    const_params = var_dict['const_param_0']
+    const_desc1, const_val1, const_unit1 = const_params[0], const_params[1], const_params[2]
+        
+    # dictionary must consider metadata such as type of holder and device params
+    
+    # label keys for ctrl_dic
+    str_var_m0 = var_desc_m0 + '_'+ var_unit_m0
+    str_var_m1 = var_desc_m1 + '_'+ var_unit_m1
+    str_var1 = var_desc1 + '_'+ var_unit1
+    str_const = const_desc1 + '_'+ const_unit1
+    
+    # input keys and values in ctrl_dic
+    ctrl_dic = {str_var_m0: var_arr_m0,
+                str_var_m1: var_arr_m1,
+                str_var1: var_arr1,
+                str_const: const_val1}
+    #print(list(ctrl_dic.keys())[1]) #dic_keys role
+    # include secondary data dic for verification [i.e., x-array_data, y-array_data, x-array_fit, y_array_fit]
+    # metadata_dic = 
+    # include metadata for uniqueness of analysis [comments, sample-identity, uniqueness]
+    # include metadata of analysis speed [i.e. total analysis time, data analyzed]
+    
+    #initiate dictionary of a list
+    yi_pars = [dict() for x in range(n)]
+    
+    #do a for-loop
+    for i in range(n):
+        #1) extract x-data from x2Ddata; y-data from y2Ddata
+        if not xlim:
+            x, idx_min, idx_max = freq_range(x2Ddata[i], x2Ddata[i][0], 
+                                             x2Ddata[i][-1])
+        else:
+            x, idx_min, idx_max = freq_range(x2Ddata[i], xlim[i][0], 
+                                             xlim[i][1])
+            
+        #2) use lmfit to extract parameters and quality of fit iteratively
+        # format for report
+        var_title = var_desc_m0 + ' ' + str(var_arr_m0[i]) + ' ' + var_unit_m0 + '; '
+        log_plot_title = 'plot '+str(i+1)+'/'+str(n) + '\n'
+        var1_title = var_desc1 + ' ' + f"{var_arr1[i]:.2e}" + ' ' + var_unit1 + '; '
+        const1_title = const_desc1 + ' ' + f"{const_val1:.2e}" + ' ' + const_unit1 + '; '
+        title = var_title + log_plot_title + var1_title + const1_title
+        
+        #3) perform fit        
+        # lst_best_fit, params_dict= lm_Qinv_tls(x, y2Ddata[i][idx_min:idx_max], 
+        #                                         show=['N','Y'], axis_title=title,
+        #                                         guess=[1,1,var_arr1[i],const_val1],
+        #                                         **kwargs)
+        
+        # good but with errors due to possibility of uncertainties having errors
+        # lst_best_fit, params_dict= lm_Qi_tls(x, y2Ddata[i][idx_min:idx_max], 
+        #                                         show=['N','Y'], axis_title=title,
+        #                                         guess=[1,1,var_arr1[i],const_val1],
+        #                                         **kwargs)
+        
+        #20240713 - Corrected format
+        lst_best_fit, params_dict= lm_Q_tls(x, y2Ddata[i][idx_min:idx_max], inverse=inverse,
+                                            show=['Y','Y'], axis_title=title,
+                                            guess=[1,1,var_arr1[i],const_val1],
+                                            **kwargs)
+        
+        """
+        fit_res_pts works well now. dict_retriv_form needs modification to
+        make sure that [units are known],         
+        """
+        
+        #3) save and view fit profile/animation for appreciation
+        
+        
+        #4) perform bundling of data to extract all information
+        yi_pars[i] = params_dict
+        time.sleep(t)
+    
+    #format yi_parameters
+    #ver 1 with tuples
+    # yi_params_dic = dict_retriv_form(data_dic=yi_pars, ctrl_dic=ctrl_dic, 
+    #                                  save=save)
+    #ver 2 with 1D lists for dictionary (easy to confirm)
+    yi_params_dic2 = dict_retriv_rev(data_dic=yi_pars, ctrl_dic=ctrl_dic, 
+                                     save=save)
+    return 
 """-------------------------lmfit.minimize version--------------------------"""
 def residual_dB_errors(params, t, data=None, weights=None):
     # minimization wrapper for lmfit.minimize (for more-complicated functions)
